@@ -2,9 +2,14 @@
 pragma solidity ^0.8.13;
 
 import {IEnergyPay} from "./interfaces/IEnergyPay.sol";
-import {ISuperERC20} from "./interfaces/ISuperERC20.sol";
 import {IERC6551Registry} from "./interfaces/IERC6551Registry.sol";
+import {ISuperchainERC20} from "optimism/interfaces/L2/ISuperchainERC20.sol";
+import {IL2StandardBridge} from "optimism/interfaces/L2/IL2StandardBridge.sol";
 
+/// @title EnergyPay
+/// @notice A contract that facilitates payments to m3ter NFTs using a specified ERC-20 asset.
+/// @dev This contract interacts with the SuperChain Token Bridge to forward payments to Token Bound Accounts
+/// (TBAs) associated with m3ter NFTs. It also keeps track of cumulative payments made to each m3ter NFT.
 contract EnergyPay is IEnergyPay {
     /// @inheritdoc IEnergyPay
     address public immutable asset;
@@ -14,9 +19,11 @@ contract EnergyPay is IEnergyPay {
     address public immutable TBARegistry;
     /// @notice The address of the ERC-6551 implementation contract.
     address public immutable TBAImplementation;
+    /// @notice The address of the L1 Standard Bridge contract.
+    address public constant l1StandardBridge = 0x4200000000000000000000000000000000000028;
 
-    /// @inheritdoc IEnergyPay
     // tokenId => cumulativePaid
+    /// @inheritdoc IEnergyPay
     mapping(uint256 => uint256) public cumulativePaid;
 
     constructor(address _asset, address _m3terNFT, address _TBARegistry, address _TBAImplementation) {
@@ -27,10 +34,17 @@ contract EnergyPay is IEnergyPay {
     }
 
     /// @inheritdoc IEnergyPay
-    function pay(uint256 tokenId, uint256 amount) external {
-        if (!ISuperERC20(asset).transferFrom(msg.sender, _m3terTBA(tokenId), amount)) {
-            revert TransferError();
-        }
+    function pay(uint256 tokenId, uint256 amount) external returns (bytes32 msgHash) {
+        // collect payment from sender
+        ISuperchainERC20(asset).transferFrom(msg.sender, address(this), amount);
+        // forward payment to TBA
+        IL2StandardBridge(l1StandardBridge).withdrawTo(
+            asset,
+            _m3terTBA(tokenId),
+            amount,
+            200000, // minGasLimit
+            "" // extraData
+        );
 
         cumulativePaid[tokenId] += amount;
     }

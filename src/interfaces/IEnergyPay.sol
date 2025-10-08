@@ -18,9 +18,10 @@ interface IEnergyPay {
      * @notice Pay a specific amount of the asset for a specific token ID
      * @param tokenId The token ID of the m3ter
      * @param amount The amount of the asset to pay
+     * @return The hash of the payment message sent.
      * @dev This function accepts payment from a superchain erc20 asset and bridges it to the m3ter's token TBA on mainnet
      */
-    function pay(uint256 tokenId, uint256 amount) external;
+    function pay(uint256 tokenId, uint256 amount) external returns (bytes32);
 
     /**
      * @notice Get the address of the asset used for payments
